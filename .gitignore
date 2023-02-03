@@ -2,5 +2,5 @@ data/
 .DS_Store
 .ipynb_checkpoints
 requirements.txt
-tulip/u
-# yo wassup
+tulip/ 
+__pycache__/
