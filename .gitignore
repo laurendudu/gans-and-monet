@@ -4,3 +4,4 @@ data/
 requirements.txt
 tulip/ 
 __pycache__/
+models
