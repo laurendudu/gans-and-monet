@@ -89,21 +89,26 @@ def rand_translation(x, ratio=0.125):
 
 def rand_cutout(x, ratio=0.5):
     """Randomly applies cutout to an image.
+    The cutout mask is of size ratio * image size.
     Args:
         x: An image [H x W x C].
         ratio: The ratio of the image size to cutout.
 
     Returns:
-        An image.
+        An image with cutout applied.
     """
     batch_size = tf.shape(x)[0]
     image_size = tf.shape(x)[1:3]
     cutout_size = tf.cast(tf.cast(image_size, tf.float32) * ratio + 0.5, tf.int32)
     offset_x = tf.random.uniform(
-        [batch_size, 1], 0, image_size[0] - cutout_size[0] + 1, dtype=tf.int32
+        [tf.shape(x)[0], 1, 1],
+        maxval=image_size[0] + (1 - cutout_size[0] % 2),
+        dtype=tf.int32,
     )
     offset_y = tf.random.uniform(
-        [batch_size, 1], 0, image_size[1] - cutout_size[1] + 1, dtype=tf.int32
+        [tf.shape(x)[0], 1, 1],
+        maxval=image_size[1] + (1 - cutout_size[1] % 2),
+        dtype=tf.int32,
     )
     grid_batch, grid_x, grid_y = tf.meshgrid(
         tf.range(batch_size, dtype=tf.int32),
@@ -111,10 +116,27 @@ def rand_cutout(x, ratio=0.5):
         tf.range(cutout_size[1], dtype=tf.int32),
         indexing="ij",
     )
-    cutout_grid = tf.stack([grid_batch, grid_x + offset_x, grid_y + offset_y], axis=-1)
-    x = tf.tensor_scatter_nd_update(
-        x, cutout_grid, tf.zeros([batch_size, cutout_size[0], cutout_size[1], 3])
+    cutout_grid = tf.stack(
+        [
+            grid_batch,
+            grid_x + offset_x - cutout_size[0] // 2,
+            grid_y + offset_y - cutout_size[1] // 2,
+        ],
+        axis=-1,
     )
+    mask_shape = tf.stack([batch_size, image_size[0], image_size[1]])
+    cutout_grid = tf.maximum(cutout_grid, 0)
+    cutout_grid = tf.minimum(cutout_grid, tf.reshape(mask_shape - 1, [1, 1, 1, 3]))
+    mask = tf.maximum(
+        1
+        - tf.scatter_nd(
+            cutout_grid,
+            tf.ones([batch_size, cutout_size[0], cutout_size[1]], dtype=tf.float32),
+            mask_shape,
+        ),
+        0,
+    )
+    x = x * tf.expand_dims(mask, axis=3)
     return x
 
 
@@ -127,6 +149,8 @@ AUGMENT_FNS = {
 
 def DiffAugment(x, policy="", channels_first=False):
     """Applies DiffAugment to a batch of images.
+    AUGMENT_FNS maps from policy strings to lists of augmentation functions.
+    The transpose operations convert between channels_first and channels_last.
     Args:
         x: Batch of images [N x H x W x C] or [N x C x H x W].
         policy: A string, e.g., 'color,translation'.
@@ -136,9 +160,13 @@ def DiffAugment(x, policy="", channels_first=False):
         A batch of augmented images.
     """
     if policy:
+        if channels_first:
+            x = tf.transpose(x, [0, 2, 3, 1])
         for p in policy.split(","):
             for f in AUGMENT_FNS[p]:
-                x = f(x, channels_first=channels_first)
+                x = f(x)
+        if channels_first:
+            x = tf.transpose(x, [0, 3, 1, 2])
     return x
 
 
@@ -147,29 +175,29 @@ def aug_fn(image):
 
 
 def data_augment_color(image):
-    image = tf.image.randopaint_filphoto_left_right(image)
+    image = tf.image.random_flip_left_right(image)
     image = DiffAugment(image, policy="color")
     return image
 
 
 def data_augment_flip(image):
-    image = tf.image.randopaint_filphoto_left_right(image)
+    image = tf.image.random_flip_left_right(image)
     return image
 
 
 class CycleGan(keras.Model):
     def __init__(
         self,
-        monet_generator,
+        paint_generator,
         photo_generator,
-        monet_discriminator,
+        paint_discriminator,
         photo_discriminator,
         lambda_cycle=10,
     ):
         super(CycleGan, self).__init__()
-        self.paint_gen = monet_generator
+        self.paint_gen = paint_generator
         self.photo_gen = photo_generator
-        self.paint_disc = monet_discriminator
+        self.paint_disc = paint_discriminator
         self.photo_disc = photo_discriminator
         self.lambda_cycle = lambda_cycle
 
@@ -195,50 +223,50 @@ class CycleGan(keras.Model):
         self.identity_loss_fn = identity_loss_fn
 
     def train_step(self, batch_data):
-        real_monet, real_photo = batch_data
-        batch_size = tf.shape(real_monet)[0]
+        real_paint, real_photo = batch_data
+        batch_size = tf.shape(real_paint)[0]
         with tf.GradientTape(persistent=True) as tape:
-            # photo to monet back to photo
-            fake_monet = self.paint_gen(real_photo, training=True)
-            cycled_photo = self.photo_gen(fake_monet, training=True)
+            # photo to paint back to photo
+            fake_paint = self.paint_gen(real_photo, training=True)
+            cycled_photo = self.photo_gen(fake_paint, training=True)
 
-            # monet to photo back to monet
-            fake_photo = self.photo_gen(real_monet, training=True)
-            cycled_monet = self.paint_gen(fake_photo, training=True)
+            # paint to photo back to paint
+            fake_photo = self.photo_gen(real_paint, training=True)
+            cycled_paint = self.paint_gen(fake_photo, training=True)
 
             # generating itself
-            same_monet = self.paint_gen(real_monet, training=True)
+            same_paint = self.paint_gen(real_paint, training=True)
             same_photo = self.photo_gen(real_photo, training=True)
 
-            both_monet = tf.concat([real_monet, fake_monet], axis=0)
+            both_paint = tf.concat([real_paint, fake_paint], axis=0)
 
-            aug_monet = aug_fn(both_monet)
+            aug_paint = aug_fn(both_paint)
 
-            aug_real_monet = aug_monet[:batch_size]
-            aug_fake_monet = aug_monet[batch_size:]
+            aug_real_paint = aug_paint[:batch_size]
+            aug_fake_paint = aug_paint[batch_size:]
 
             # discriminator used to check, inputing real images
-            disc_real_monet = self.paint_disc(aug_real_monet, training=True)
+            disc_real_paint = self.paint_disc(aug_real_paint, training=True)
             disc_real_photo = self.photo_disc(real_photo, training=True)
 
             # discriminator used to check, inputing fake images
-            disc_fake_monet = self.paint_disc(aug_fake_monet, training=True)
+            disc_fake_paint = self.paint_disc(aug_fake_paint, training=True)
             disc_fake_photo = self.photo_disc(fake_photo, training=True)
 
             # evaluates generator loss
-            monet_gen_loss = self.gen_loss_fn(disc_fake_monet)
+            paint_gen_loss = self.gen_loss_fn(disc_fake_paint)
             photo_gen_loss = self.gen_loss_fn(disc_fake_photo)
 
             # evaluates total cycle consistency loss
             total_cycle_loss = self.cycle_loss_fn(
-                real_monet, cycled_monet, self.lambda_cycle
+                real_paint, cycled_paint, self.lambda_cycle
             ) + self.cycle_loss_fn(real_photo, cycled_photo, self.lambda_cycle)
 
             # evaluates total generator loss
-            total_monet_gen_loss = (
-                monet_gen_loss
+            total_paint_gen_loss = (
+                paint_gen_loss
                 + total_cycle_loss
-                + self.identity_loss_fn(real_monet, same_monet, self.lambda_cycle)
+                + self.identity_loss_fn(real_paint, same_paint, self.lambda_cycle)
             )
             total_photo_gen_loss = (
                 photo_gen_loss
@@ -247,19 +275,19 @@ class CycleGan(keras.Model):
             )
 
             # evaluates discriminator loss
-            monet_disc_loss = self.disc_loss_fn(disc_real_monet, disc_fake_monet)
+            paint_disc_loss = self.disc_loss_fn(disc_real_paint, disc_fake_paint)
             photo_disc_loss = self.disc_loss_fn(disc_real_photo, disc_fake_photo)
 
         # calculate the gradients for generator and discriminator
-        monet_generator_gradients = tape.gradient(
-            total_monet_gen_loss, self.paint_gen.trainable_variables
+        paint_generator_gradients = tape.gradient(
+            total_paint_gen_loss, self.paint_gen.trainable_variables
         )
         photo_generator_gradients = tape.gradient(
             total_photo_gen_loss, self.photo_gen.trainable_variables
         )
 
-        monet_discriminator_gradients = tape.gradient(
-            monet_disc_loss, self.paint_disc.trainable_variables
+        paint_discriminator_gradients = tape.gradient(
+            paint_disc_loss, self.paint_disc.trainable_variables
         )
         photo_discriminator_gradients = tape.gradient(
             photo_disc_loss, self.photo_disc.trainable_variables
@@ -267,7 +295,7 @@ class CycleGan(keras.Model):
 
         # apply the gradients to the optimizer
         self.paint_gen_optimizer.apply_gradients(
-            zip(monet_generator_gradients, self.paint_gen.trainable_variables)
+            zip(paint_generator_gradients, self.paint_gen.trainable_variables)
         )
 
         self.photo_gen_optimizer.apply_gradients(
@@ -275,7 +303,7 @@ class CycleGan(keras.Model):
         )
 
         self.paint_disc_optimizer.apply_gradients(
-            zip(monet_discriminator_gradients, self.paint_disc.trainable_variables)
+            zip(paint_discriminator_gradients, self.paint_disc.trainable_variables)
         )
 
         self.photo_disc_optimizer.apply_gradients(
@@ -283,8 +311,8 @@ class CycleGan(keras.Model):
         )
 
         return {
-            "monet_gen_loss": total_monet_gen_loss,
+            "paint_gen_loss": total_paint_gen_loss,
             "photo_gen_loss": total_photo_gen_loss,
-            "monet_disc_loss": monet_disc_loss,
+            "paint_disc_loss": paint_disc_loss,
             "photo_disc_loss": photo_disc_loss,
         }

@@ -5,3 +5,4 @@ requirements.txt
 tulip/ 
 __pycache__/
 models
+checkpoints
