@@ -34,4 +34,4 @@ In order to do so, we have tested:
 * a vanilla CycleGAN + Differential Augmentation
 * a vanilla CycleGAN + Differential Augmentation + Dual Headed Discriminator. 
 
-The theory and report for this project can be found [here](https://www.notion.so/laurendu/Style-Transfer-Using-GANs-Painter-Impersonation-a226f81f209c4cefbf2bba7a2969d702). 
+The theory and report for this project can be found [here](https://laurendu.notion.site/Style-Transfer-Using-GANs-Painter-Impersonation-a226f81f209c4cefbf2bba7a2969d702). 
