@@ -27,6 +27,8 @@ This repository is composed of two main parts, the notebooks and the python code
 
 For this project, we have tested 3 methods of GANs. The initial goal of the Kaggle competition was to generate 7,000 Monet-esque pictures. 
 
+![image](https://user-images.githubusercontent.com/60437222/216825705-f26aa0d7-cc4b-4ebf-910b-a0defebf240d.png)
+
 In order to do so, we have tested:
 * a vanilla CycleGAN
 * a vanilla CycleGAN + Differential Augmentation
