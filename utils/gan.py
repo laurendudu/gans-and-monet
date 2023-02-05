@@ -132,8 +132,6 @@ def generator():
 
 def discriminator():
     """Discriminator model architecture.
-    Args:
-      output_channels: Output channels
     Returns:
         Discriminator model
     """

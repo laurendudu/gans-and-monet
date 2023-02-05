@@ -188,16 +188,16 @@ def data_augment_flip(image):
 class CycleGan(keras.Model):
     def __init__(
         self,
-        monet_generator,
+        paint_generator,
         photo_generator,
-        monet_discriminator,
+        paint_discriminator,
         photo_discriminator,
         lambda_cycle=10,
     ):
         super(CycleGan, self).__init__()
-        self.paint_gen = monet_generator
+        self.paint_gen = paint_generator
         self.photo_gen = photo_generator
-        self.paint_disc = monet_discriminator
+        self.paint_disc = paint_discriminator
         self.photo_disc = photo_discriminator
         self.lambda_cycle = lambda_cycle
 
@@ -223,50 +223,50 @@ class CycleGan(keras.Model):
         self.identity_loss_fn = identity_loss_fn
 
     def train_step(self, batch_data):
-        real_monet, real_photo = batch_data
-        batch_size = tf.shape(real_monet)[0]
+        real_paint, real_photo = batch_data
+        batch_size = tf.shape(real_paint)[0]
         with tf.GradientTape(persistent=True) as tape:
-            # photo to monet back to photo
-            fake_monet = self.paint_gen(real_photo, training=True)
-            cycled_photo = self.photo_gen(fake_monet, training=True)
+            # photo to paint back to photo
+            fake_paint = self.paint_gen(real_photo, training=True)
+            cycled_photo = self.photo_gen(fake_paint, training=True)
 
-            # monet to photo back to monet
-            fake_photo = self.photo_gen(real_monet, training=True)
-            cycled_monet = self.paint_gen(fake_photo, training=True)
+            # paint to photo back to paint
+            fake_photo = self.photo_gen(real_paint, training=True)
+            cycled_paint = self.paint_gen(fake_photo, training=True)
 
             # generating itself
-            same_monet = self.paint_gen(real_monet, training=True)
+            same_paint = self.paint_gen(real_paint, training=True)
             same_photo = self.photo_gen(real_photo, training=True)
 
-            both_monet = tf.concat([real_monet, fake_monet], axis=0)
+            both_paint = tf.concat([real_paint, fake_paint], axis=0)
 
-            aug_monet = aug_fn(both_monet)
+            aug_paint = aug_fn(both_paint)
 
-            aug_real_monet = aug_monet[:batch_size]
-            aug_fake_monet = aug_monet[batch_size:]
+            aug_real_paint = aug_paint[:batch_size]
+            aug_fake_paint = aug_paint[batch_size:]
 
             # discriminator used to check, inputing real images
-            disc_real_monet = self.paint_disc(aug_real_monet, training=True)
+            disc_real_paint = self.paint_disc(aug_real_paint, training=True)
             disc_real_photo = self.photo_disc(real_photo, training=True)
 
             # discriminator used to check, inputing fake images
-            disc_fake_monet = self.paint_disc(aug_fake_monet, training=True)
+            disc_fake_paint = self.paint_disc(aug_fake_paint, training=True)
             disc_fake_photo = self.photo_disc(fake_photo, training=True)
 
             # evaluates generator loss
-            monet_gen_loss = self.gen_loss_fn(disc_fake_monet)
+            paint_gen_loss = self.gen_loss_fn(disc_fake_paint)
             photo_gen_loss = self.gen_loss_fn(disc_fake_photo)
 
             # evaluates total cycle consistency loss
             total_cycle_loss = self.cycle_loss_fn(
-                real_monet, cycled_monet, self.lambda_cycle
+                real_paint, cycled_paint, self.lambda_cycle
             ) + self.cycle_loss_fn(real_photo, cycled_photo, self.lambda_cycle)
 
             # evaluates total generator loss
-            total_monet_gen_loss = (
-                monet_gen_loss
+            total_paint_gen_loss = (
+                paint_gen_loss
                 + total_cycle_loss
-                + self.identity_loss_fn(real_monet, same_monet, self.lambda_cycle)
+                + self.identity_loss_fn(real_paint, same_paint, self.lambda_cycle)
             )
             total_photo_gen_loss = (
                 photo_gen_loss
@@ -275,19 +275,19 @@ class CycleGan(keras.Model):
             )
 
             # evaluates discriminator loss
-            monet_disc_loss = self.disc_loss_fn(disc_real_monet, disc_fake_monet)
+            paint_disc_loss = self.disc_loss_fn(disc_real_paint, disc_fake_paint)
             photo_disc_loss = self.disc_loss_fn(disc_real_photo, disc_fake_photo)
 
         # calculate the gradients for generator and discriminator
-        monet_generator_gradients = tape.gradient(
-            total_monet_gen_loss, self.paint_gen.trainable_variables
+        paint_generator_gradients = tape.gradient(
+            total_paint_gen_loss, self.paint_gen.trainable_variables
         )
         photo_generator_gradients = tape.gradient(
             total_photo_gen_loss, self.photo_gen.trainable_variables
         )
 
-        monet_discriminator_gradients = tape.gradient(
-            monet_disc_loss, self.paint_disc.trainable_variables
+        paint_discriminator_gradients = tape.gradient(
+            paint_disc_loss, self.paint_disc.trainable_variables
         )
         photo_discriminator_gradients = tape.gradient(
             photo_disc_loss, self.photo_disc.trainable_variables
@@ -295,7 +295,7 @@ class CycleGan(keras.Model):
 
         # apply the gradients to the optimizer
         self.paint_gen_optimizer.apply_gradients(
-            zip(monet_generator_gradients, self.paint_gen.trainable_variables)
+            zip(paint_generator_gradients, self.paint_gen.trainable_variables)
         )
 
         self.photo_gen_optimizer.apply_gradients(
@@ -303,7 +303,7 @@ class CycleGan(keras.Model):
         )
 
         self.paint_disc_optimizer.apply_gradients(
-            zip(monet_discriminator_gradients, self.paint_disc.trainable_variables)
+            zip(paint_discriminator_gradients, self.paint_disc.trainable_variables)
         )
 
         self.photo_disc_optimizer.apply_gradients(
@@ -311,8 +311,8 @@ class CycleGan(keras.Model):
         )
 
         return {
-            "monet_gen_loss": total_monet_gen_loss,
+            "paint_gen_loss": total_paint_gen_loss,
             "photo_gen_loss": total_photo_gen_loss,
-            "monet_disc_loss": monet_disc_loss,
+            "paint_disc_loss": paint_disc_loss,
             "photo_disc_loss": photo_disc_loss,
         }
