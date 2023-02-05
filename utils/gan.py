@@ -7,8 +7,8 @@ OUTPUT_CHANNELS = 3
 
 
 def downsample(filters, size, apply_instancenorm=True):
-    """Downsamples an input.
-    Conv2D => Batchnorm => LeakyRelu
+    """Downsamples an input. Downsampling is done by Conv2D => Batchnorm => LeakyRelu.
+    Downsampling decreases the size of the images.
     Args:
       filters: number of filters
       size: filter size
@@ -39,8 +39,9 @@ def downsample(filters, size, apply_instancenorm=True):
 
 
 def upsample(filters, size, apply_dropout=False):
-    """Upsamples an input.
+    """Upsamples an input. Upsampling is done by
     Conv2DTranspose => Batchnorm => Dropout => Relu
+    Upsampling increases the size of the images.
     Args:
       filters: number of filters
       size: filter size
@@ -81,6 +82,8 @@ def generator():
     """
     inputs = keras.layers.Input(shape=[256, 256, 3])
 
+    # Downsampling through the model
+    # (bs, 256, 256, 3) -> (bs, 128, 128, 64) -> (bs, 64, 64, 128) -> (bs, 32, 32, 256)
     down_stack = [
         downsample(64, 4, apply_instancenorm=False),
         downsample(128, 4),
@@ -92,6 +95,9 @@ def generator():
         downsample(512, 4),
     ]
 
+    # Upsampling and establishing the skip connections
+    # Skip connections are used to add the original input to the output of the layer
+    # (bs, 32, 32, 256) -> (bs, 64, 64, 256) -> (bs, 128, 128, 256) -> (bs, 256, 256, 256)
     up_stack = [
         upsample(512, 4, apply_dropout=True),
         upsample(512, 4, apply_dropout=True),
@@ -102,6 +108,7 @@ def generator():
         upsample(64, 4),
     ]
 
+    # Last layer
     initializer = tf.random_normal_initializer(0.0, 0.02)
     last = keras.layers.Conv2DTranspose(
         OUTPUT_CHANNELS,

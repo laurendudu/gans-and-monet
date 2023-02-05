@@ -4,6 +4,15 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def decode_image(image, image_size):
+    """Decodes an image and resizes it to the desired size.
+    In this case, the image is a JPEG encoded string. The function will decode
+    the image and resize it to the desired size.
+    Args:
+        image: The raw input image.
+        image_size: The target image size.
+    Returns:
+        The decoded and resized image.
+    """
     image = tf.image.decode_jpeg(image, channels=3)
     image = (tf.cast(image, tf.float32) / 127.5) - 1
     image = tf.reshape(image, [*image_size, 3])
@@ -11,6 +20,16 @@ def decode_image(image, image_size):
 
 
 def tfrecord_to_image(example, image_size=[256, 256]):
+    """Converts a TFRecord to a tf.data.Dataset. A TFRecord is a file format
+    for storing data. This function will read the TFRecord and parse the image
+    and its attributes.
+    Args:
+        example: A serialized example.
+        image_size: The target image size.
+    Returns:
+        A tuple containing the image and its attributes. The attributes are
+        stored in a dictionary.
+    """
     tfrecord_format = {
         "image_name": tf.io.FixedLenFeature([], tf.string),
         "image": tf.io.FixedLenFeature([], tf.string),
@@ -21,19 +40,20 @@ def tfrecord_to_image(example, image_size=[256, 256]):
     return image
 
 
-def load_dataset(filenames, batch_size):
+def load_dataset(filenames, batch_size=1):
+    """Loads a TFRecord dataset.
+    Args:
+        filenames: A list of TFRecord file paths.
+        batch_size: The batch size to use for training.
+    Returns:
+        A tf.data.Dataset.
+    """
     ignore_order = tf.data.Options()
     ignore_order.experimental_deterministic = False
     dataset = tf.data.TFRecordDataset(filenames, num_parallel_reads=AUTOTUNE)
     dataset = dataset.with_options(ignore_order)
     dataset = dataset.map(tfrecord_to_image, num_parallel_calls=AUTOTUNE)
     dataset = dataset.batch(batch_size)
-    return dataset
-
-
-def load_dataset(filenames):
-    dataset = tf.data.TFRecordDataset(filenames)
-    dataset = dataset.map(tfrecord_to_image, num_parallel_calls=AUTOTUNE)
     return dataset
 
 

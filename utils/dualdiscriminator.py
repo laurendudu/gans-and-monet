@@ -70,6 +70,8 @@ def discriminator_photo():
 
 
 class CycleGan(keras.Model):
+    """CycleGan model with a discriminator model for each domain X and Y."""
+
     def __init__(
         self,
         paint_generator,
@@ -273,7 +275,15 @@ class CycleGan(keras.Model):
 
 
 def discriminator_loss1(real, generated):
-    """Calculates discriminator loss for the first discriminator head."""
+    """Calculates discriminator loss for the first discriminator head.
+    This loss is calculated as the sum of two losses:
+    1. The loss for the discriminator when it classifies real images as real.
+    2. The loss for the discriminator when it classifies fake (generated) images
+    as fake.
+    These two losses are scaled by a factor of 0.5 each, to ensure that the
+    gradients from these two losses don't cancel out when backpropagated
+    through the discriminator.
+    """
     real_loss = tf.math.minimum(tf.zeros_like(real), real - tf.ones_like(real))
 
     generated_loss = tf.math.minimum(
@@ -286,7 +296,11 @@ def discriminator_loss1(real, generated):
 
 
 def discriminator_loss2(real, generated):
-    """Calculates discriminator loss for the second discriminator head."""
+    """Calculates discriminator loss for the second discriminator head.
+    This loss is different from the first discriminator head loss in that it
+    uses the binary cross entropy loss function instead of the hinge loss
+    function.
+    """
     generated_loss = tf.keras.losses.BinaryCrossentropy(
         from_logits=True, reduction=tf.keras.losses.Reduction.NONE
     )(tf.ones_like(generated), generated)
@@ -299,12 +313,12 @@ def discriminator_loss2(real, generated):
 
 
 def generator_loss1(generated):
-    """Calculates generator loss for the first generator head."""
+    """Calculates generator loss for the first generator."""
     return tf.reduce_mean(-generated)
 
 
 def generator_loss2(generated):
-    """Calculates generator loss for the second generator head."""
+    """Calculates generator loss for the second generator."""
     return tf.reduce_mean(
         tf.keras.losses.BinaryCrossentropy(
             from_logits=True, reduction=tf.keras.losses.Reduction.NONE
@@ -314,6 +328,7 @@ def generator_loss2(generated):
 
 def calc_cycle_loss(real_image, cycled_image, LAMBDA):
     """Calculates cycle loss.
+    Cycle loss is the absolute difference between the real and cycled images.
     Reduce_sum is used to calculate the sum of the absolute difference between the real and cycled images.
     The loss is multiplied by the lambda value and 0.0000152587890625 to normalize the loss.
     0.0000152587890625 is the value of 1/65535, which is the maximum pixel value for images with dtype=tf.uint16.
@@ -334,6 +349,7 @@ def calc_cycle_loss(real_image, cycled_image, LAMBDA):
 
 def identity_loss(real_image, same_image, LAMBDA):
     """Calculates identity loss.
+    Identity loss is the loss between the real image and the image passed through the generator twice.
     Reduce_sum is used to calculate the sum of the absolute difference between the real and same images.
     The loss is multiplied by the lambda value and 0.0000152587890625 to normalize the loss.
     0.0000152587890625 is the value of 1/65535, which is the maximum pixel value for images with dtype=tf.uint16.
@@ -345,7 +361,6 @@ def identity_loss(real_image, same_image, LAMBDA):
 
     Returns:
         Loss value
-
     """
     loss = tf.reduce_sum(tf.abs(real_image - same_image))
     return LAMBDA * 0.5 * loss * 0.0000152587890625
