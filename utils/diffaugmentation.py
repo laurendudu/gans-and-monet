@@ -89,21 +89,26 @@ def rand_translation(x, ratio=0.125):
 
 def rand_cutout(x, ratio=0.5):
     """Randomly applies cutout to an image.
+    The cutout mask is of size ratio * image size.
     Args:
         x: An image [H x W x C].
         ratio: The ratio of the image size to cutout.
 
     Returns:
-        An image.
+        An image with cutout applied.
     """
     batch_size = tf.shape(x)[0]
     image_size = tf.shape(x)[1:3]
     cutout_size = tf.cast(tf.cast(image_size, tf.float32) * ratio + 0.5, tf.int32)
     offset_x = tf.random.uniform(
-        [batch_size, 1], 0, image_size[0] - cutout_size[0] + 1, dtype=tf.int32
+        [tf.shape(x)[0], 1, 1],
+        maxval=image_size[0] + (1 - cutout_size[0] % 2),
+        dtype=tf.int32,
     )
     offset_y = tf.random.uniform(
-        [batch_size, 1], 0, image_size[1] - cutout_size[1] + 1, dtype=tf.int32
+        [tf.shape(x)[0], 1, 1],
+        maxval=image_size[1] + (1 - cutout_size[1] % 2),
+        dtype=tf.int32,
     )
     grid_batch, grid_x, grid_y = tf.meshgrid(
         tf.range(batch_size, dtype=tf.int32),
@@ -111,10 +116,27 @@ def rand_cutout(x, ratio=0.5):
         tf.range(cutout_size[1], dtype=tf.int32),
         indexing="ij",
     )
-    cutout_grid = tf.stack([grid_batch, grid_x + offset_x, grid_y + offset_y], axis=-1)
-    x = tf.tensor_scatter_nd_update(
-        x, cutout_grid, tf.zeros([batch_size, cutout_size[0], cutout_size[1], 3])
+    cutout_grid = tf.stack(
+        [
+            grid_batch,
+            grid_x + offset_x - cutout_size[0] // 2,
+            grid_y + offset_y - cutout_size[1] // 2,
+        ],
+        axis=-1,
     )
+    mask_shape = tf.stack([batch_size, image_size[0], image_size[1]])
+    cutout_grid = tf.maximum(cutout_grid, 0)
+    cutout_grid = tf.minimum(cutout_grid, tf.reshape(mask_shape - 1, [1, 1, 1, 3]))
+    mask = tf.maximum(
+        1
+        - tf.scatter_nd(
+            cutout_grid,
+            tf.ones([batch_size, cutout_size[0], cutout_size[1]], dtype=tf.float32),
+            mask_shape,
+        ),
+        0,
+    )
+    x = x * tf.expand_dims(mask, axis=3)
     return x
 
 
@@ -127,6 +149,8 @@ AUGMENT_FNS = {
 
 def DiffAugment(x, policy="", channels_first=False):
     """Applies DiffAugment to a batch of images.
+    AUGMENT_FNS maps from policy strings to lists of augmentation functions.
+    The transpose operations convert between channels_first and channels_last.
     Args:
         x: Batch of images [N x H x W x C] or [N x C x H x W].
         policy: A string, e.g., 'color,translation'.
@@ -136,9 +160,13 @@ def DiffAugment(x, policy="", channels_first=False):
         A batch of augmented images.
     """
     if policy:
+        if channels_first:
+            x = tf.transpose(x, [0, 2, 3, 1])
         for p in policy.split(","):
             for f in AUGMENT_FNS[p]:
-                x = f(x, channels_first=channels_first)
+                x = f(x)
+        if channels_first:
+            x = tf.transpose(x, [0, 3, 1, 2])
     return x
 
 
@@ -147,13 +175,13 @@ def aug_fn(image):
 
 
 def data_augment_color(image):
-    image = tf.image.randopaint_filphoto_left_right(image)
+    image = tf.image.random_flip_left_right(image)
     image = DiffAugment(image, policy="color")
     return image
 
 
 def data_augment_flip(image):
-    image = tf.image.randopaint_filphoto_left_right(image)
+    image = tf.image.random_flip_left_right(image)
     return image
 
 

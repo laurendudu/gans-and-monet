@@ -38,29 +38,29 @@ def load_dataset(filenames):
 
 
 def get_gan_dataset(
-    monet_files, photo_files, augment=None, repeat=True, shuffle=True, batch_size=1
+    paint_files, photo_files, augment=None, repeat=True, shuffle=True, batch_size=1
 ):
 
-    monet_ds = load_dataset(monet_files)
+    paint_ds = load_dataset(paint_files)
     photo_ds = load_dataset(photo_files)
 
     if repeat:
-        monet_ds = monet_ds.repeat()
+        paint_ds = paint_ds.repeat()
         photo_ds = photo_ds.repeat()
     if shuffle:
-        monet_ds = monet_ds.shuffle(2048)
+        paint_ds = paint_ds.shuffle(2048)
         photo_ds = photo_ds.shuffle(2048)
 
-    monet_ds = monet_ds.batch(batch_size, drop_remainder=True)
+    paint_ds = paint_ds.batch(batch_size, drop_remainder=True)
     photo_ds = photo_ds.batch(batch_size, drop_remainder=True)
     if augment:
-        monet_ds = monet_ds.map(augment, num_parallel_calls=AUTOTUNE)
+        paint_ds = paint_ds.map(augment, num_parallel_calls=AUTOTUNE)
         photo_ds = photo_ds.map(augment, num_parallel_calls=AUTOTUNE)
 
-    monet_ds = monet_ds.prefetch(AUTOTUNE)
+    paint_ds = paint_ds.prefetch(AUTOTUNE)
     photo_ds = photo_ds.prefetch(AUTOTUNE)
 
-    gan_ds = tf.data.Dataset.zip((monet_ds, photo_ds))
+    gan_ds = tf.data.Dataset.zip((paint_ds, photo_ds))
 
     return gan_ds
 
