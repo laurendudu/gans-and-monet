@@ -23,7 +23,7 @@ This code was developed on MacOS, Linux, and the Kaggle Jupyter notebok interfac
 In the Kaggle interface, we recomment using the TPU v3-8, for faster training computations. 
 
 ## In a nutshell
-This repository is composed of two main parts, the notebooks and the python code in the `utils` folder. 
+This repository is composed of two main parts, the notebooks and the python code in the `utils` folder. This folder is where the code is the most explained.
 
 For this project, we have tested 3 methods of GANs. The initial goal of the Kaggle competition was to generate 7,000 Monet-esque pictures. 
 
