@@ -140,6 +140,7 @@ def rand_cutout(x, ratio=0.5):
     return x
 
 
+# Maps from policy strings to lists of augmentation functions.
 AUGMENT_FNS = {
     "color": [rand_brightness, rand_saturation, rand_contrast],
     "translation": [rand_translation],
@@ -171,21 +172,50 @@ def DiffAugment(x, policy="", channels_first=False):
 
 
 def aug_fn(image):
+    """Augmentation function used in training.
+    This function applies a series of augmentation operations to an image.
+    Args:
+        image: Input image.
+
+    Returns:
+        Augmented image.
+    """
     return DiffAugment(image, policy="color,translation,cutout")
 
 
 def data_augment_color(image):
+    """Augmentation function used in training.
+    This function augments the color of an image, which means that it applies
+    random brightness, saturation, and contrast to the image.
+
+    Args:
+        image: Input image.
+
+    Returns:
+        Augmented image.
+    """
     image = tf.image.random_flip_left_right(image)
     image = DiffAugment(image, policy="color")
     return image
 
 
 def data_augment_flip(image):
+    """This function flips the image horizontally.
+
+    Args:
+        image: Input image.
+
+    Returns:
+        Augmented image.
+    """
     image = tf.image.random_flip_left_right(image)
     return image
 
 
 class CycleGan(keras.Model):
+    """CycleGan model for image-to-image translation.
+    This CycleGAN is used for the differentiable augmentation method."""
+
     def __init__(
         self,
         paint_generator,

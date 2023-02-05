@@ -3,6 +3,19 @@ import tensorflow as tf
 
 
 class CycleGan(keras.Model):
+    """CycleGAN model.
+    The CycleGAN model consists of two generators and two discriminators.
+    Each generator is responsible for converting one domain to another domain.
+    Each discriminator is responsible for classifying whether an image is real or
+    generated. The model is trained to fool the discriminators.
+        Args:
+            paint_generator: The generator that converts photos to paintings.
+            photo_generator: The generator that converts paintings to photos.
+            paint_discriminator: The discriminator that classifies paintings.
+            photo_discriminator: The discriminator that classifies photos.
+            lambda_cycle: The coefficient for the cycle consistency loss.
+    """
+
     def __init__(
         self,
         paint_generator,
@@ -40,6 +53,15 @@ class CycleGan(keras.Model):
         self.identity_loss_fn = identity_loss_fn
 
     def train_step(self, batch_data):
+        """Executes one training step and returns the loss.
+        In a training step, we will run the images through the generator and
+        calculate the generator loss. Then, we will calculate the gradients and
+        apply them to the generator and discriminator optimizers.
+        Arguments:
+            batch_data: A tuple of (real_paint, real_photo).
+        Returns:
+            A dictionary containing the loss values.
+        """
         real_paint, real_photo = batch_data
 
         with tf.GradientTape(persistent=True) as tape:
@@ -165,6 +187,15 @@ def generator_loss(generated):
 
 
 def calc_cycle_loss(real_image, cycled_image, LAMBDA):
+    """Calculates the cycle consistency loss.
+    The cycle consistency loss is calculated using the sum of absolute differences.
+    Args:
+        real_image: The original image.
+        cycled_image: The generated image that is cycled back to the original image.
+        LAMBDA: Weight factor. Usually 10.
+    Returns:
+        The cycle consistency loss.
+    """
     loss1 = tf.reduce_mean(tf.abs(real_image - cycled_image))
 
     return LAMBDA * loss1
