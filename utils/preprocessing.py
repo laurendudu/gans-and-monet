@@ -60,6 +60,20 @@ def load_dataset(filenames, batch_size=1):
 def get_gan_dataset(
     paint_files, photo_files, augment=None, repeat=True, shuffle=True, batch_size=1
 ):
+    """Returns a tf.data.Dataset for training the CycleGAN model.
+    Args:
+        paint_files: A list of TFRecord file paths for paintings.
+        photo_files: A list of TFRecord file paths for photos.
+        augment: An optional augmentation function.
+        repeat: A boolean indicating whether to repeat the dataset. This is
+            useful for training. Repeating the dataset will allow the model to
+            see the same image multiple times during training.
+        shuffle: A boolean indicating whether to shuffle the dataset. Shuffling
+        the dataset will allow the model to generalize better during training.
+        batch_size: The batch size to use for training.
+    Returns:
+        A tf.data.Dataset.
+    """
 
     paint_ds = load_dataset(paint_files)
     photo_ds = load_dataset(photo_files)
@@ -88,6 +102,19 @@ def get_gan_dataset(
 def get_photo_dataset(
     photo_files, augment=None, repeat=False, shuffle=False, batch_size=1
 ):
+    """Returns a tf.data.Dataset for training the CycleGAN model.
+    Args:
+        photo_files: A list of TFRecord file paths for photos.
+        augment: An optional augmentation function.
+        repeat: A boolean indicating whether to repeat the dataset. This is
+            useful for training. Repeating the dataset will allow the model to
+            see the same image multiple times during training.
+        shuffle: A boolean indicating whether to shuffle the dataset. Shuffling
+        the dataset will allow the model to generalize better during training.
+        batch_size: The batch size to use for training.
+    Returns:
+        A tf.data.Dataset.
+    """
 
     photo_ds = load_dataset(photo_files)
 
