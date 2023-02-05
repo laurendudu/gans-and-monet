@@ -37,7 +37,7 @@ def d_head():
     the second part is the head, which is used to classify the input image as real or fake.
     """
     initializer = tf.random_normal_initializer(0.0, 0.02)
-    _input = keras.layers.Input(shape=[30, 30, 512], name="input_image")
+    _input = keras.layers.Input(shape=[33, 33, 512], name="input_image")
     x = _input
 
     last = keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
